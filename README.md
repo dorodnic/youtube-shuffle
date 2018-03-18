@@ -8,4 +8,4 @@ The source code was designed to help you get started with YouTube JavaScript API
 
 The code is [public domain](https://github.com/dorodnic/youtube-shuffle/blob/master/LICENSE). 
 
-Copyright 2018 [dorodnic.com](dorodnic.com)
+Copyright 2018 [dorodnic.com](http://dorodnic.com)
