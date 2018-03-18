@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="Rediscover your subscribtions">
+	<meta name="author" content="dorodnic.com">
+	<title>YouTube Shuffle</title>
+
+	<meta property="og:title" content="YouTube Shuffle">
+	<meta property="og:description" content="Rediscover your subscribtions">
+	<meta property="og:image" content="http://dorodnic.com/shuffle/preview2.png">
+	<meta property="og:url" content="http://dorodnic.com/shuffle">
+
+	<script>
+	var GoogleAuth;
+	var SCOPE = 'https://www.googleapis.com/auth/youtube.force-ssl';
+
+	var shufflePromises = [];
+  
+	function handleClientLoad() {
+		// Load the API's client and auth2 modules.
+		// Call the initClient function after the modules load.
+		gapi.load('client:auth2', initClient);
+	}
+
+	function initClient() {
+		// Retrieve the discovery document for version 3 of YouTube Data API.
+		// In practice, your app can retrieve one or more discovery documents.
+		var discoveryUrl = 'https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest';
+
+		// Initialize the gapi.client object, which app uses to make API requests.
+		// Get API key and client ID from API Console.
+		// 'scope' field specifies space-delimited list of access scopes.
+		gapi.client.init({
+			'apiKey': 'AIzaSyAyx5jurRJY0CnmdI6ESq2h4IJMgcTy_Pk',
+			'discoveryDocs': [discoveryUrl],
+			'clientId': '762914907303-a2cnmmtngsbjf9sg3j1sgrk18ub5e1f9.apps.googleusercontent.com',
+			'scope': SCOPE
+		}).then(function () {
+			GoogleAuth = gapi.auth2.getAuthInstance();
+
+			// Listen for sign-in state changes.
+			GoogleAuth.isSignedIn.listen(updateSigninStatus);
+
+			// Handle initial sign-in state. (Determine if user is already signed in.)
+			var user = GoogleAuth.currentUser.get();
+
+			setSigninStatus();
+
+			$('#sign-out-btn').click(function() {
+				handleAuthClick();
+			}); 
+			$('#sign-in-btn').click(function() {
+				handleAuthClick();
+			}); 
+			$('#shuffle-btn').click(function() {
+				shuffle();
+			});
+		});
+	}
+
+	function handleAuthClick() {
+		if (GoogleAuth.isSignedIn.get()) {
+			// User is authorized and has clicked 'Sign out' button.
+			GoogleAuth.signOut();
+		} else {
+			// User is not signed in. Start Google auth flow.
+			GoogleAuth.signIn();
+		}
+	}
+  
+	function updateRequestProgress(rid, progress, author) {
+		progress = Math.floor(progress);
+		var bar = "<div class='progress' style='padding=10px;'><div class='progress-bar progress-bar-striped' role='progressbar' aria-valuenow='" + progress + "' aria-valuemin='0' aria-valuemax='100' style='width: " + progress + "%'><span class='sr-only'>" + progress + "% Complete</span></div></div>";
+		
+		var table = "<table height=320 width=320 class='t-table'><tr><td style='padding: 25px;'>" + bar + "</td></tr><tr><td style='height: 40px'>" + author + "</td></tr></table>";
+		
+		if (progress == 0) {
+			table = "<table height=320 width=320 class='t-table'><tr><td><center><i id='spinner-icon' class='fas fa-spinner fa-pulse fa-2x' style='color:#113756'></i></center></td></tr></table>";
+		}
+		
+		$('#result' + rid).html(table);
+	}
+  
+	function getUploads(resolve, rid, author, pid, idx, vid, token) {
+		var rq = {
+			part: 'snippet,contentDetails',
+			playlistId: pid,
+			maxResults: 50
+		};
+		if (token)
+		{
+			rq.pageToken = token;
+		}
+		
+		var request = gapi.client.youtube.playlistItems.list(rq);
+		
+		request.execute(function(response) {
+			var next = response.nextPageToken;
+			
+			var total = response.pageInfo.totalResults;
+			
+			if (total > 10000) return;
+			
+			if (vid === undefined) {
+				vid = Math.floor(Math.random() * total);
+			}
+
+			//console.log('Inspecting [' + idx + ' .. ' + (idx + response.items.length) + '], seeking ' + vid + ", PID=" + pid);
+			if (vid >= idx && vid < idx + response.items.length) {
+				var itm = response.items[vid - idx];
+				
+				var thumb = itm.snippet.thumbnails.medium;
+
+				var tooltip = "<font size=4>" + itm.snippet.title + "</font>";
+				
+				var link = "<a href='https://www.youtube.com/watch?v=" + itm.snippet.resourceId.videoId + "' target='_blank'>";
+				
+				var img = "<img src='" + thumb.url + "' width=" + thumb.width + " height=" + thumb.height + ">";
+				
+				var table = "<table class='t-table'><tr style='height: " + thumb.height + "px'><td>" + link + img + "</a></td></tr><tr><td><div class='scroll-container' style='padding: 10px;'>" + link + tooltip + "</a></div></td></tr><tr><td style='height: 40px'>" + author + "</td></tr></table>";
+
+				$('#result' + rid).html(table);
+				
+				resolve();
+				
+				return;
+			}
+			
+			updateRequestProgress(rid, (100 * idx) / vid, author);
+			
+			if (next) {
+				getUploads(resolve, rid, author, pid, idx + 50, vid, next);
+			}
+		});
+	}
+
+
+  
+	function getChannel(resolve, rid, cid) {
+		var request = gapi.client.youtube.channels.list({
+		part: 'snippet,contentDetails,statistics',
+		id: cid
+		});
+		request.execute(function(response) {
+			var channels = response.items;
+			if (channels.length == 0) {
+				console.log('No channel found.');
+			} else {
+				var channel_link = "<a href='https://www.youtube.com/channel/" + channels[0].id + "' target='_blank'>";
+				var channel_img = "<img src=" + channels[0].snippet.thumbnails.default.url + " style='width: 24px; height: 24px; border-radius: 50%'> ";
+				var author = "<center><b>" + channel_link + channel_img + channels[0].snippet.title + "</a></b></center>";
+
+				getUploads(resolve, rid, author, channels[0].contentDetails.relatedPlaylists.uploads, 0);
+			}
+		});
+	}
+
+  
+	function printSubs(resolve, rid, idx, token, vid) {
+		var rq = {
+			part: 'id,contentDetails,subscriberSnippet,snippet',
+			mine: true,
+			maxResults: 50
+		};
+		if (token)
+		{
+			rq.pageToken = token;
+		}
+		var request = gapi.client.youtube.subscriptions.list(rq);
+		
+		request.execute(function(response) {
+			var total = response.pageInfo.totalResults;
+		
+			if (vid === undefined) {
+				vid = Math.floor(Math.random() * total);
+			}
+			
+			var next = response.nextPageToken;
+			
+			if (vid >= idx && vid < idx + response.items.length) {
+				var itm = response.items[vid - idx];
+				var cid = itm.snippet.resourceId.channelId;
+				getChannel(resolve, rid, cid);
+			}
+			if (vid >= idx + response.items.length && vid < idx + 50) {
+				printSubs(resolve, rid, 0);
+			}
+			else if (next) {
+				printSubs(resolve, rid, idx + 50, next, vid);
+			}
+		});
+	}
+  
+	function shuffle() {
+		shufflePromises = [];
+	  
+		$('#youtube-icon').css('display', 'none');
+		$('#spinner-icon').css('display', 'inline-block');
+		
+		var results = $('#results');
+		results.html("");
+		
+		var width = $(document).width();
+		var height = $(document).height();
+		var size = 330;
+		var top_margin = 60;
+		if (width < 800) {
+			top_margin = 120;
+		}
+		
+		var left_margin = (width - Math.floor(width / size) * size) / 2;
+		var columns = Math.floor(width / size); 
+		var rows = Math.floor((height - top_margin) / size) + 1;
+		
+		var count = Math.max(rows * columns, 9);
+
+		for (i = 0; i < count; i++) {
+			var promise = new Promise(function(resolve, reject) {
+				printSubs(resolve, i, 0);
+			});
+			shufflePromises.push(promise);
+		
+			var x = left_margin + (i % columns) * size;
+			var y = top_margin + Math.floor(i / columns) * size;
+			results.append("<div id='result" + i + "' style='position:absolute; top:" + y + "px; left:" + x + "px;' />");
+			
+			updateRequestProgress(i, 0, "");
+		}
+
+		Promise.all(shufflePromises).then(function(values) {
+			$('#youtube-icon').css('display', 'inline-block');
+			$('#spinner-icon').css('display', 'none');
+		});
+	}
+
+	function setSigninStatus(isSignedIn) {
+		var user = GoogleAuth.currentUser.get();
+		var isAuthorized = user.hasGrantedScopes(SCOPE);
+		if (isAuthorized) {
+			$('#sign-in-btn').css('display', 'none');
+			$('#shuffle-disabled-btn').css('display', 'none');
+			$('#shuffle-btn').css('display', 'inline-block');
+			$('#user-combo').css('display', 'inline-block');
+			
+			$('#user-info').css('display', 'inline-block');
+			$('#user-icon').attr('src', user.getBasicProfile().getImageUrl());
+			$('#user-name').html(user.getBasicProfile().getName());	
+
+			$('#about').css('display', 'none');
+			
+			shuffle();
+		} else {
+			$('#sign-in-btn').css('display', 'inline-block');
+			$('#shuffle-disabled-btn').css('display', 'inline-block');
+			$('#shuffle-btn').css('display', 'none');
+			
+			$('#user-combo').css('display', 'none');
+			$('#user-info').css('display', 'none');
+			
+			$('#about').css('display', 'inline-block');
+			
+			var results = $('#results');
+			results.html("");
+		}
+	}
+
+	function updateSigninStatus(isSignedIn) {
+		setSigninStatus();
+	}
+	</script>
+
+	<link href="https://fonts.googleapis.com/css?family=Ubuntu" rel="stylesheet">
+
+	<script async defer src="https://apis.google.com/js/api.js" 
+        onload="this.onload=function(){};handleClientLoad()" 
+        onreadystatechange="if (this.readyState === 'complete') this.onload()">
+	</script>
+
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+	<style>
+	.navbar-header, .dropdown, .custom {
+		display: inline-block;
+		margin: 5px;
+	}
+
+	a:link, a:visited, a:hover, a:active {
+		text-decoration: none;
+		color: #e6f2ff;
+	}
+
+	.t-table {
+		height: 320px;
+		width: 320px;
+		border-collapse: collapse;
+		background-color:rgba(0, 0, 0, 0.8); 
+		margin: 10px;
+	}
+	.t-table td:empty {
+		border-left: 0;
+		border-right: 0;
+	}
+	.scroll-container{
+		max-height: 80px;
+		overflow-y: hidden;
+	}
+	.footer {
+		position: fixed;
+		left: 0;
+		bottom: 0;
+		width: 100%;
+		background-color:rgba(0, 0, 0, 0.4); 
+		color: white;
+		text-align: center;
+	}
+	</style>
+</head>
+<body style="font-family: 'Ubuntu', sans-serif;"  background="bg.jpg">
+	<nav class="navbar navbar-atp navbar-inverse navbar-static-top" role="navigation">
+		<div class="container-fluid">
+			<div class="navbar-header">
+				<button class="btn btn-lg" id="shuffle-btn" style="display: none; font-weight: bold;"
+					data-placement="bottom" data-toggle="tooltip" title="Pick new random sample from your subscribtions">
+					<i class="fab fa-youtube" style="color:Red" id="youtube-icon"></i> 
+					<i id="spinner-icon" class="fas fa-spinner fa-pulse" style="color:Red; display: none;"></i> Shuffle
+				</button>
+				<button class="btn btn-lg disabled" id="shuffle-disabled-btn"
+					data-placement="bottom" data-toggle="tooltip" title="Please sign-in first">
+					<i class="fab fa-youtube"></i> Shuffle
+				</button>
+			</div>
+			<div id="navbar">
+				<ul class="nav navbar-nav" style="float: right;">
+					<li>
+						<button class="btn btn-lg custom" id="sign-in-btn"
+							data-placement="bottom" data-toggle="tooltip" title="Sign-in with your Google account">
+							<i class="fas fa-user"></i> Sign-in
+						</button>
+					</li>
+					<li>
+						<div class="dropdown" style="display: none" id="user-combo">
+						  <button class="btn btn-lg dropdown-toggle" type="button" data-toggle="dropdown">
+							  <div id="user-info">
+								<img id="user-icon" width=25 height=25 
+									style="border-radius: 50%; float: left" />
+								<div id="user-name" style="margin-left: 30px; font-weight: bold;"></div>
+							  </div>
+							  
+							  <span class="caret"></span>
+						  </button>
+						  <ul class="dropdown-menu">
+							<li><a href="#" id="sign-out-btn"><i class="fas fa-sign-out-alt"></i> Sign-Out</a></li>
+						  </ul>
+						</div>
+					</li>
+				</ul>
+			</div>
+		</div>
+	</nav>
+
+	<div role="main" id="results">
+	</div>
+
+	<div role="main" class="container">
+		<div class="well" id="about">
+			<p>
+				<h2><i class="fas fa-question-circle"></i> About</h1>
+				<b>YouTube Shuffle</b> is a toy-site to help you rediscover your YouTube subscriptions. Once you sign-in with a Google account, you will get a random list of videos from your existing subscriptions. There's no algorithm or data-collection, every time you get a new unique page of random goodies.
+			</p>
+		</div>
+	</div>
+
+	<div class="footer">
+		<p>© 2018 Copyright: <b><a href="http://dorodnic.com" target="_blank">dorodnic.com</a></b></p>
+	</div>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+	<script src="https://use.fontawesome.com/releases/v5.0.8/js/all.js" integrity="sha384-SlE991lGASHoBfWbelyBPLsUlwY1GwNDJo3jSJO04KZ33K2bwfV9YBauFfnzvynJ" crossorigin="anonymous"></script>
+	<script type="text/javascript">
+	$(document).ready(function() {
+		$("body").tooltip({ selector: '[data-toggle=tooltip]' });
+	});
+	</script>
+</body>
+</html>
