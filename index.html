@@ -12,6 +12,8 @@
 	<meta property="og:description" content="Rediscover your subscribtions">
 	<meta property="og:image" content="http://dorodnic.com/shuffle/preview2.png">
 	<meta property="og:url" content="http://dorodnic.com/shuffle">
+	<meta property="og:type" content="website">
+	<meta property="fb:app_id" content="1368943733249559">
 
 	<script>
 	var GoogleAuth;
@@ -240,6 +242,7 @@
 		var user = GoogleAuth.currentUser.get();
 		var isAuthorized = user.hasGrantedScopes(SCOPE);
 		if (isAuthorized) {
+			$('#social').css('display', 'inline-block');
 			$('#sign-in-btn').css('display', 'none');
 			$('#shuffle-disabled-btn').css('display', 'none');
 			$('#shuffle-btn').css('display', 'inline-block');
@@ -253,6 +256,7 @@
 			
 			shuffle();
 		} else {
+			$('#social').css('display', 'none');
 			$('#sign-in-btn').css('display', 'inline-block');
 			$('#shuffle-disabled-btn').css('display', 'inline-block');
 			$('#shuffle-btn').css('display', 'none');
@@ -320,6 +324,18 @@
 	</style>
 </head>
 <body style="font-family: 'Ubuntu', sans-serif;"  background="bg.jpg">
+	<div id="fb-root"></div>
+	<script>
+        (function(d, s, id) {
+            var js, fjs = d.getElementsByTagName(s)[0];
+            if (d.getElementById(id)) return;
+            js = d.createElement(s);
+            js.id = id;
+            js.src = "//connect.facebook.net/en_US/sdk.js#xfbml=1&version=v2.3";
+            fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'facebook-jssdk'));
+    </script>
+
 	<nav class="navbar navbar-atp navbar-inverse navbar-static-top" role="navigation">
 		<div class="container-fluid">
 			<div class="navbar-header">
@@ -335,6 +351,19 @@
 			</div>
 			<div id="navbar">
 				<ul class="nav navbar-nav" style="float: right;">
+					<li>
+						<div class="well custom" id="social" style="padding:7px; display: none"">
+							<a href="https://github.com/dorodnic/youtube-shuffle" target="_blank" data-placement="bottom" data-toggle="tooltip" title="Source-code on GitHub">
+								<i class="fab fa-github-square fa-2x" data-fa-transform="grow-2 down-1" style="color:#3e3f42"></i>
+							</a>
+						
+							<div class="fb-like" 
+								data-href="http://dorodnic.com/shuffle" 
+								data-layout="button_count" data-action="like" 
+								data-size="large" data-show-faces="true" data-share="false">
+							</div>
+						</div>
+					</li>
 					<li>
 						<button class="btn btn-lg custom" id="sign-in-btn"
 							data-placement="bottom" data-toggle="tooltip" title="Sign-in with your Google account">
