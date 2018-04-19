@@ -18,8 +18,13 @@
 	<script>
 	var GoogleAuth;
 	var SCOPE = 'https://www.googleapis.com/auth/youtube.force-ssl';
-
+	
+	var left_margin = 0;
+	var top_margin;
+	var line_width = 0;
+	var last_idx = 0;
 	var shufflePromises = [];
+	var size = 330;
   
 	function handleClientLoad() {
 		// Load the API's client and auth2 modules.
@@ -207,17 +212,20 @@
 		
 		var width = $(document).width();
 		var height = $(document).height();
-		var size = 330;
-		var top_margin = 60;
+		
+		top_margin = 60;
 		if (width < 800) {
 			top_margin = 120;
 		}
 		
-		var left_margin = (width - Math.floor(width / size) * size) / 2;
+		left_margin = (width - Math.floor(width / size) * size) / 2;
 		var columns = Math.floor(width / size); 
 		var rows = Math.floor((height - top_margin) / size) + 1;
 		
 		var count = Math.max(rows * columns, 9);
+		
+		line_width = columns;
+		last_idx = count;
 
 		for (i = 0; i < count; i++) {
 			var promise = new Promise(function(resolve, reject) {
@@ -274,6 +282,8 @@
 	function updateSigninStatus(isSignedIn) {
 		setSigninStatus();
 	}
+	
+
 	</script>
 
 	<link href="https://fonts.googleapis.com/css?family=Ubuntu" rel="stylesheet">
@@ -413,6 +423,36 @@
 	<script type="text/javascript">
 	$(document).ready(function() {
 		$("body").tooltip({ selector: '[data-toggle=tooltip]' });
+		
+		$(window).on('scroll', function(){
+			if( $(document).scrollTop() > ($(document).height() - $(window).height()) * 0.9 ) {
+				$('#youtube-icon').css('display', 'none');
+				$('#spinner-icon').css('display', 'inline-block');
+				
+				var results = $('#results');
+				var next_idx = last_idx + 2 * line_width;
+				
+				for (i = last_idx; i < next_idx; i++) {
+					var promise = new Promise(function(resolve, reject) {
+						printSubs(resolve, i, 0);
+					});
+					shufflePromises.push(promise);
+				
+					var x = left_margin + (i % line_width) * size;
+					var y = top_margin + Math.floor(i / line_width) * size;
+					results.append("<div id='result" + i + "' style='position:absolute; top:" + y + "px; left:" + x + "px;' />");
+					
+					updateRequestProgress(i, 0, "");
+				}
+				
+				last_idx = next_idx;
+
+				Promise.all(shufflePromises).then(function(values) {
+					$('#youtube-icon').css('display', 'inline-block');
+					$('#spinner-icon').css('display', 'none');
+				});
+			}
+		});
 	});
 	</script>
 </body>
